@@ -1,8 +1,7 @@
 import Route from '@ember/routing/route';
 import { inject as service } from '@ember/service';
-import { task, waitForProperty } from 'ember-concurrency';
-import { next } from '@ember/runloop';
 import bblDemux from '../utils/bbl-demux';
+import notifyAfterLoad from '../utils/notify-after-load';
 import { computed } from 'ember-decorators/object'; // eslint-disable-line
 import updateSelectionMixin from '../mixins/update-selection';
 
@@ -14,14 +13,15 @@ export default Route.extend(updateSelectionMixin, {
 
   model(params) {
     const id = bblDemux(params);
-    return {
+    return notifyAfterLoad({
       taskInstance: this.store.findRecord('lot', id),
-    };
+    }, () => {
+      this.set('mainMap.shouldFitBounds', true);
+    });
   },
 
   setupController(controller, { taskInstance }) {
     this._super(controller, taskInstance);
-    this.get('waitToFitBounds').perform(taskInstance);
 
     controller
       .setProperties({
@@ -33,12 +33,4 @@ export default Route.extend(updateSelectionMixin, {
         @computed('lot.zonedist4') primaryzone4(zonedist) { return getPrimaryZone(zonedist); },
       });
   },
-
-  waitToFitBounds: task(function* (taskInstance) {
-    yield waitForProperty(taskInstance, 'state', 'finished');
-
-    next(() => {
-      this.set('mainMap.shouldFitBounds', true);
-    });
-  }).restartable(),
 });
